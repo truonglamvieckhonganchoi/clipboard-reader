@@ -3,43 +3,68 @@ package com.bomber.clipreader;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.Intent;
 import android.os.Bundle;
 
 import java.io.File;
 import java.io.FileWriter;
 
 /**
- * Activity trong suốt (transparent) - không hiển thị gì trên màn hình.
+ * Activity trong suốt (transparent) - hỗ trợ 2 chế độ:
  *
- * Flow hoạt động:
- * 1. Được mở bởi ClipReceiver khi nhận broadcast từ ADB
- * 2. Vì là Activity foreground -> Android 12 cho phép đọc clipboard
- * 3. Đọc nội dung clipboard hiện tại
- * 4. Ghi ra file /sdcard/clipboard.txt (overwrite)
- * 5. Tự đóng ngay lập tức (finish())
+ * 1. GET MODE (mặc định): Đọc clipboard và ghi ra file
+ *    Lệnh: adb shell am start -n com.bomber.clipreader/.ClipActivity
+ *    Output: /storage/emulated/0/Android/data/com.bomber.clipreader/files/clipboard.txt
  *
- * Người dùng gần như không thấy gì vì Activity hoàn toàn trong suốt
- * và tự đóng trong vài millisecond.
+ * 2. SET MODE: Ghi text vào clipboard của giả lập
+ *    Lệnh: adb shell am start -n com.bomber.clipreader/.ClipActivity --es text "noi_dung"
+ *    Sau lệnh này, clipboard giả lập sẽ chứa "noi_dung"
+ *
+ * Cả 2 mode đều mở Activity foreground (Android 12 yêu cầu) rồi tự đóng ngay.
  */
 public class ClipActivity extends Activity {
 
-    // Tên file output cố định
+    // Tên file output cho GET mode
     private static final String OUTPUT_FILE = "clipboard.txt";
+
+    // Key của Intent extra cho SET mode
+    private static final String EXTRA_TEXT = "text";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Kiểm tra Intent có chứa text để SET không
+        Intent intent = getIntent();
+        String textToSet = null;
+        if (intent != null) {
+            textToSet = intent.getStringExtra(EXTRA_TEXT);
+        }
+
+        if (textToSet != null) {
+            // SET MODE: Ghi text vào clipboard giả lập
+            setClipboard(textToSet);
+        } else {
+            // GET MODE: Đọc clipboard giả lập rồi ghi ra file
+            getClipboard();
+        }
+
+        // Tự đóng Activity ngay lập tức
+        finish();
+    }
+
+    /**
+     * GET MODE: Đọc clipboard và ghi nội dung ra file.
+     * File output: /storage/emulated/0/Android/data/com.bomber.clipreader/files/clipboard.txt
+     */
+    private void getClipboard() {
         String clipText = "";
 
         try {
-            // Lấy ClipboardManager từ system service
             ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-
             if (cm != null && cm.hasPrimaryClip()) {
                 ClipData clip = cm.getPrimaryClip();
                 if (clip != null && clip.getItemCount() > 0) {
-                    // Lấy item đầu tiên trong clipboard (thường chỉ có 1)
                     CharSequence text = clip.getItemAt(0).getText();
                     if (text != null) {
                         clipText = text.toString();
@@ -47,27 +72,44 @@ public class ClipActivity extends Activity {
                 }
             }
         } catch (Exception e) {
-            // Ghi lỗi vào file để debug từ ADB
             clipText = "ERROR:" + e.getMessage();
         }
 
-        // Ghi nội dung clipboard ra /sdcard/clipboard.txt
         writeToFile(clipText);
-
-        // Tự đóng Activity ngay lập tức
-        finish();
     }
 
     /**
-     * Ghi nội dung ra file.
-     * Ưu tiên getExternalFilesDir (không cần permission, ADB đọc được).
-     * Path: /sdcard/Android/data/com.bomber.clipreader/files/clipboard.txt
+     * SET MODE: Ghi text từ Intent extra vào clipboard giả lập.
      *
-     * @param content Nội dung cần ghi (clipboard text)
+     * @param text Nội dung cần ghi vào clipboard
+     */
+    private void setClipboard(String text) {
+        try {
+            ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (cm != null) {
+                // Tạo ClipData kiểu text thuần và set vào clipboard
+                ClipData clip = ClipData.newPlainText("ClipReader", text);
+                cm.setPrimaryClip(clip);
+
+                // Ghi xác nhận thành công ra file để PC verify được
+                writeToFile("SET_OK:" + text);
+            } else {
+                writeToFile("ERROR:ClipboardManager_null");
+            }
+        } catch (Exception e) {
+            writeToFile("ERROR:" + e.getMessage());
+        }
+    }
+
+    /**
+     * Ghi nội dung ra file trong app-specific external storage.
+     * Path: /sdcard/Android/data/com.bomber.clipreader/files/clipboard.txt
+     * Không cần permission đặc biệt, ADB đọc trực tiếp được.
+     *
+     * @param content Nội dung cần ghi
      */
     private void writeToFile(String content) {
-        // Cách 1: App-specific external storage (không cần permission)
-        // ADB đọc: adb shell cat /sdcard/Android/data/com.bomber.clipreader/files/clipboard.txt
+        // Cách 1: App-specific external storage (ADB đọc được, không cần permission)
         try {
             File dir = getExternalFilesDir(null);
             if (dir != null) {
@@ -76,13 +118,13 @@ public class ClipActivity extends Activity {
                 writer.write(content);
                 writer.flush();
                 writer.close();
-                return; // Thành công, không cần fallback
+                return;
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        // Cách 2: Internal files dir (luôn ghi được, nhưng cần run-as để đọc)
+        // Cách 2: Internal files dir (fallback nếu external không khả dụng)
         try {
             File file = new File(getFilesDir(), OUTPUT_FILE);
             FileWriter writer = new FileWriter(file, false);
@@ -94,3 +136,4 @@ public class ClipActivity extends Activity {
         }
     }
 }
+
