@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.os.Bundle;
-import android.os.Environment;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -60,29 +59,38 @@ public class ClipActivity extends Activity {
     }
 
     /**
-     * Ghi nội dung ra file trên sdcard.
-     * Dùng requestLegacyExternalStorage=true trong manifest để bypass scoped storage.
+     * Ghi nội dung ra file.
+     * Ưu tiên getExternalFilesDir (không cần permission, ADB đọc được).
+     * Path: /sdcard/Android/data/com.bomber.clipreader/files/clipboard.txt
      *
      * @param content Nội dung cần ghi (clipboard text)
      */
     private void writeToFile(String content) {
+        // Cách 1: App-specific external storage (không cần permission)
+        // ADB đọc: adb shell cat /sdcard/Android/data/com.bomber.clipreader/files/clipboard.txt
         try {
-            File file = new File(Environment.getExternalStorageDirectory(), OUTPUT_FILE);
-            FileWriter writer = new FileWriter(file, false); // false = overwrite
+            File dir = getExternalFilesDir(null);
+            if (dir != null) {
+                File file = new File(dir, OUTPUT_FILE);
+                FileWriter writer = new FileWriter(file, false);
+                writer.write(content);
+                writer.flush();
+                writer.close();
+                return; // Thành công, không cần fallback
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Cách 2: Internal files dir (luôn ghi được, nhưng cần run-as để đọc)
+        try {
+            File file = new File(getFilesDir(), OUTPUT_FILE);
+            FileWriter writer = new FileWriter(file, false);
             writer.write(content);
             writer.flush();
             writer.close();
         } catch (Exception e) {
-            // Nếu không ghi được sdcard, thử ghi vào /data/local/tmp/
-            try {
-                File fallback = new File("/data/local/tmp", OUTPUT_FILE);
-                FileWriter writer = new FileWriter(fallback, false);
-                writer.write(content);
-                writer.flush();
-                writer.close();
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
+            e.printStackTrace();
         }
     }
 }
