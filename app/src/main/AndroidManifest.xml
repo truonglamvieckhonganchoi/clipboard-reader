@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    AndroidManifest cho ứng dụng ClipReader.
+    - Đăng ký Activity trong suốt để có thể đọc clipboard ở Android 12+ (yêu cầu foreground)
+    - Đăng ký BroadcastReceiver nhận lệnh từ ADB
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.bomber.clipreader">
+
+    <!-- Quyền ghi/đọc file vào sdcard để xuất nội dung clipboard -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:requestLegacyExternalStorage="true"
+        android:theme="@style/TransparentTheme">
+
+        <!--
+            Activity trong suốt:
+            - Khi mở lên sẽ trở thành "foreground" -> Android 12 cho phép đọc clipboard
+            - Đọc xong ghi file rồi finish() ngay, người dùng gần như không thấy gì
+        -->
+        <activity
+            android:name=".ClipActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/TransparentTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            BroadcastReceiver nhận lệnh từ ADB.
+            Cú pháp gọi:
+                adb shell am broadcast -a com.bomber.clipreader.GET
+        -->
+        <receiver
+            android:name=".ClipReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.bomber.clipreader.GET" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

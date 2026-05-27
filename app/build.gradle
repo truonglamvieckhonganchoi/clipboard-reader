@@ -1,0 +1,34 @@
+// Build config cho module app ClipboardReader
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.bomber.clipreader'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.bomber.clipreader"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+}

@@ -1,0 +1,10 @@
+// Build script root project
+// Khai báo plugin AGP (Android Gradle Plugin) phiên bản tương thích với Gradle 8.x
+plugins {
+    id 'com.android.application' version '8.1.4' apply false
+}
+
+// Task xóa toàn bộ thư mục build khi cần clean project
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
